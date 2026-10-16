@@ -154,7 +154,8 @@ def push(report):
     )
     try:
         resp = json.loads(raw)
-        if resp.get("code") == 1:
+        # Server酱成功时返回 {"code":0,"error":"SUCCESS","errno":0}
+        if resp.get("error") == "SUCCESS" or resp.get("errno") == 0:
             print("[推送] Server酱发送成功")
         else:
             print(f"[推送] Server酱返回异常：{raw[:200]}")
