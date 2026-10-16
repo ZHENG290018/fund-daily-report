@@ -122,6 +122,8 @@
         <button class="btn ghost small" id="importBtn">批量导入</button>
         <button class="btn ghost small" id="exportBtn">导出持仓</button>
         <button class="btn ghost small" id="settingsBtn">推送设置</button>
+        <button class="btn ghost small" id="ghBtn">GitHub 同步</button>
+        <span id="ghStatus" style="font-size:12px;color:var(--muted)"></span>
         <span class="user-chip" id="userChip"></span>
         <button class="btn ghost small" id="logoutBtn" style="display:none">退出</button>
       </div>
@@ -244,6 +246,32 @@
   </div>
 </dialog>
 
+<dialog id="ghDialog">
+  <h3>GitHub 持仓同步</h3>
+  <p style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:10px">
+    配置后，你在本页增删改持仓会<b>自动提交</b>到仓库的 <code style="background:#f1f2f4;padding:1px 4px;border-radius:4px">holdings.json</code>，每日推送随之更新，无需去 GitHub 手动修改。<br>
+    Token 只需创建一次：GitHub → Settings → Developer settings → Fine-grained tokens → 勾选该仓库的 <b>Contents: Read and write</b> 权限。
+  </p>
+  <div style="display:grid;gap:8px;margin-bottom:10px">
+    <input id="ghRepo" placeholder="仓库：用户名/仓库名，如 tom/fund-daily-report" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+    <div style="display:flex;gap:8px">
+      <input id="ghBranch" placeholder="分支（默认 main）" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+      <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px;white-space:nowrap">
+        <input type="checkbox" id="ghAuto" checked> 改动后自动同步
+      </label>
+    </div>
+    <input id="ghToken" type="password" placeholder="Fine-grained Token（ghp_ / github_pat_ 开头）" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+  </div>
+  <div class="name-preview" id="ghPreview"></div>
+  <div class="dialog-btns">
+    <button class="btn ghost" id="ghPullBtn">从 GitHub 拉取</button>
+    <button class="btn ghost" id="ghTestBtn">测试连接</button>
+    <span style="flex:1"></span>
+    <button class="btn ghost" id="ghCancelBtn">取消</button>
+    <button class="btn" id="ghSaveBtn">保存</button>
+  </div>
+</dialog>
+
 <script>
 "use strict";
 /* GitHub Pages 部署版：已移除云服务 SDK，纯本地模式运行（数据存浏览器 localStorage） */
@@ -275,7 +303,7 @@ const LS_HOLDINGS = "fund_holdings_v1";
 const LS_REPORTS = "fund_reports_v1";
 const store = {
   holdings: JSON.parse(localStorage.getItem(LS_HOLDINGS) || "[]"),
-  save(){ localStorage.setItem(LS_HOLDINGS, JSON.stringify(this.holdings)); }
+  save(){ localStorage.setItem(LS_HOLDINGS, JSON.stringify(this.holdings)); scheduleGhSync(); }
 };
 const loadReports = () => JSON.parse(localStorage.getItem(LS_REPORTS) || "[]");
 const saveReports = rs => localStorage.setItem(LS_REPORTS, JSON.stringify(rs.slice(-60)));
@@ -288,6 +316,7 @@ const saveReports = rs => localStorage.setItem(LS_REPORTS, JSON.stringify(rs.sli
     if(!res.ok) return;
     const data = await res.json();
     if(Array.isArray(data) && data.length && data.every(x => x && x.code)){
+      ghSkipNext = true;   // 初始播种不回推，避免无意义 commit
       store.holdings = data.map(x => ({ code: String(x.code), shares: Number(x.shares) || 0, cost: Number(x.cost) || 0 }));
       store.save();
       if(typeof render === "function") render();
@@ -1059,6 +1088,115 @@ async function restoreAuth(){
   await loadCloudProfile();
   startApp();
 }
+
+/* ============ GitHub 持仓同步（网页改动自动提交到仓库 holdings.json） ============ */
+const LS_GH = "fund_gh_sync_v1";
+let ghCfg = JSON.parse(localStorage.getItem(LS_GH) || "null") || { repo: "", branch: "main", token: "", auto: true };
+let ghSyncTimer = null, ghBusy = false, ghSkipNext = false;
+const saveGhCfg = () => localStorage.setItem(LS_GH, JSON.stringify(ghCfg));
+const setGhStatus = (t, sticky) => {
+  $("ghStatus").textContent = t;
+  if(!sticky && t) setTimeout(() => { if($("ghStatus").textContent === t) $("ghStatus").textContent = ""; }, 5000);
+};
+
+function ghApi(path, opts = {}){
+  return fetch("https://api.github.com" + path, Object.assign({}, opts, {
+    headers: Object.assign({
+      "Accept": "application/vnd.github+json",
+      "Authorization": "Bearer " + (ghCfg.token || "").trim()
+    }, opts.headers || {})
+  })).then(async r => {
+    if(!r.ok){ throw new Error("GitHub API " + r.status + ": " + (await r.text()).slice(0, 150)); }
+    return r.status === 204 ? null : r.json();
+  });
+}
+
+function scheduleGhSync(){
+  if(ghSkipNext){ ghSkipNext = false; return; }
+  if(!ghCfg.auto || !ghCfg.repo || !ghCfg.token) return;
+  clearTimeout(ghSyncTimer);
+  ghSyncTimer = setTimeout(pushHoldingsToGitHub, 2000);
+}
+
+async function pushHoldingsToGitHub(){
+  if(ghBusy || !ghCfg.repo || !ghCfg.token) return;
+  ghBusy = true; setGhStatus("正在同步到 GitHub…", true);
+  try{
+    const json = JSON.stringify(store.holdings, null, 2) + "\n";
+    const b64 = btoa(unescape(encodeURIComponent(json)));
+    const branch = ghCfg.branch || "main";
+    let sha = null;
+    try{ sha = (await ghApi(`/repos/${ghCfg.repo}/contents/holdings.json?ref=${encodeURIComponent(branch)}`)).sha; }
+    catch(e){ if(!/404/.test(e.message)) throw e; }
+    await ghApi(`/repos/${ghCfg.repo}/contents/holdings.json`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: "持仓更新（来自网页） " + new Date().toLocaleString("zh-CN"),
+        content: b64, sha, branch
+      })
+    });
+    setGhStatus("持仓已同步到 GitHub ✓");
+  }catch(e){
+    setGhStatus("同步失败", true);
+    console.warn("[GitHub] 同步失败", e);
+    alert("GitHub 同步失败：" + e.message);
+  }
+  ghBusy = false;
+}
+
+async function pullHoldingsFromGitHub(){
+  try{
+    const meta = await ghApi(`/repos/${ghCfg.repo}/contents/holdings.json?ref=${encodeURIComponent(ghCfg.branch || "main")}`);
+    const json = decodeURIComponent(escape(atob(meta.content.replace(/\s/g, ""))));
+    const data = JSON.parse(json);
+    if(!Array.isArray(data)) throw new Error("holdings.json 不是数组");
+    ghSkipNext = true;
+    store.holdings = data.map(x => ({ code: String(x.code), shares: Number(x.shares) || 0, cost: Number(x.cost) || 0 }));
+    store.save(); render(); refreshAll();
+    $("ghPreview").textContent = "已拉取 " + store.holdings.length + " 只基金";
+  }catch(e){
+    $("ghPreview").textContent = "拉取失败：" + e.message;
+  }
+}
+
+function ghOpenDialog(){
+  $("ghRepo").value = ghCfg.repo || "";
+  $("ghBranch").value = ghCfg.branch || "main";
+  $("ghToken").value = ghCfg.token || "";
+  $("ghAuto").checked = !!ghCfg.auto;
+  $("ghPreview").textContent = ghCfg.repo ? "当前已配置，改动持仓后自动同步" : "";
+  $("ghDialog").showModal();
+}
+
+$("ghBtn").onclick = ghOpenDialog;
+$("ghCancelBtn").onclick = () => $("ghDialog").close();
+$("ghTestBtn").onclick = async () => {
+  const repo = $("ghRepo").value.trim(), token = $("ghToken").value.trim(), branch = $("ghBranch").value.trim() || "main";
+  if(!repo || !token){ $("ghPreview").textContent = "请先填写仓库和 Token"; return; }
+  $("ghPreview").textContent = "测试中…";
+  const bak = ghCfg;
+  ghCfg = Object.assign({}, ghCfg, { repo, token, branch });
+  try{
+    const info = await ghApi("/repos/" + repo);
+    let extra = "";
+    try{ await ghApi(`/repos/${repo}/contents/holdings.json?ref=${encodeURIComponent(branch)}`); extra = "，holdings.json 可读写"; }
+    catch(e){ extra = /404/.test(e.message) ? "（仓库中暂无 holdings.json，保存后会自动创建）" : "，但 holdings.json 不可访问：" + e.message.slice(0, 60); }
+    $("ghPreview").textContent = `✓ 连接成功：${info.full_name}${extra}`;
+  }catch(e){
+    $("ghPreview").textContent = "✗ " + e.message.slice(0, 120);
+  }
+  ghCfg = bak;
+};
+$("ghSaveBtn").onclick = () => {
+  const repo = $("ghRepo").value.trim(), token = $("ghToken").value.trim();
+  if(!repo || !token){ $("ghPreview").textContent = "仓库和 Token 不能为空"; return; }
+  ghCfg = { repo, branch: $("ghBranch").value.trim() || "main", token, auto: $("ghAuto").checked };
+  saveGhCfg();
+  setGhStatus("GitHub 同步已开启", true);
+  $("ghDialog").close();
+  pushHoldingsToGitHub();   // 保存后立即对齐一次
+};
 
 restoreAuth();
 </script>
