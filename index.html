@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>基金每日收益</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#ffffff; --border:#e6e8ec; --text:#1f2329;
+    --muted:#8a919f; --up:#e5484d; --down:#2f9e6e; --accent:#3b6ef6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding-bottom:90px}
+  .container{max-width:760px;margin:0 auto;padding:20px 16px}
+
+  header.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+  header.top h1{font-size:20px;font-weight:700}
+  .refresh-line{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap}
+  .btn{border:none;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;background:var(--accent);color:#fff}
+  .btn.ghost{background:#fff;color:var(--text);border:1px solid var(--border)}
+  .btn.small{padding:4px 10px;font-size:12px}
+  .btn:hover{opacity:.9}
+  .user-chip{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+
+  .summary{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+  .summary .label{font-size:12px;color:var(--muted);margin-bottom:6px}
+  .summary .value{font-size:20px;font-weight:700}
+  .summary .sub{font-size:12px;margin-top:4px;color:var(--muted)}
+
+  .up{color:var(--up)} .down{color:var(--down)}
+
+  .fund-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px}
+  .fund-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+  .fund-name{font-size:15px;font-weight:600}
+  .fund-code{font-size:12px;color:var(--muted);margin-top:2px}
+  .fund-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .icon-btn{border:1px solid var(--border);background:#fff;border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer;color:var(--muted)}
+  .icon-btn:hover{color:var(--text)}
+
+  .est-line{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  .est-pct{font-size:22px;font-weight:700}
+  .est-amt{font-size:14px;font-weight:600}
+  .tag{display:inline-block;font-size:11px;border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:3px}
+  .tag.ok{background:#fdeaea;color:var(--up)}
+  .tag.wait{background:#f1f2f4;color:var(--muted)}
+
+  .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding-top:10px;border-top:1px dashed var(--border)}
+  .metrics .m-label{font-size:11px;color:var(--muted)}
+  .metrics .m-value{font-size:13px;font-weight:600;margin-top:2px}
+
+  .spark{margin-top:10px}
+  .spark svg{width:100%;height:44px;display:block}
+  .spark-caption{font-size:11px;color:var(--muted);margin-top:2px}
+
+  .plan-line{font-size:12px;color:var(--muted);margin-top:8px}
+  .plan-line b{color:var(--text);font-weight:600}
+
+  .report-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px}
+  .report-title{font-size:14px;font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+  .report-title .time{font-size:11px;color:var(--muted);font-weight:400}
+  .report-line{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid #f5f6f8}
+  .report-line .r-name{color:var(--text)}
+  .report-line .r-val{font-weight:600}
+  .report-total{display:flex;justify-content:space-between;font-size:14px;font-weight:700;padding-top:8px;margin-top:2px;border-top:1px dashed var(--border)}
+  .report-hist{margin-top:8px;font-size:12px}
+  .report-hist summary{cursor:pointer;color:var(--muted)}
+  .report-hist .h-line{display:flex;justify-content:space-between;padding:3px 0;color:var(--muted)}
+  .report-hist .h-line b{color:var(--text)}
+
+  .err{font-size:12px;color:var(--up)}
+  .empty{text-align:center;color:var(--muted);padding:60px 0;line-height:2}
+
+  .fab{position:fixed;right:24px;bottom:24px;border-radius:50%;width:52px;height:52px;font-size:26px;line-height:1;box-shadow:0 4px 14px rgba(59,110,246,.35)}
+
+  dialog{border:none;border-radius:14px;padding:22px;width:320px;box-shadow:0 10px 40px rgba(0,0,0,.15)}
+  dialog::backdrop{background:rgba(0,0,0,.35)}
+  dialog h3{font-size:16px;margin-bottom:14px}
+  dialog label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+  dialog input,dialog select,dialog textarea{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:#fff;font-family:inherit}
+  dialog input:focus,dialog select:focus{outline:none;border-color:var(--accent)}
+  dialog input[type="checkbox"]{width:auto}
+  .name-preview{font-size:12px;color:var(--accent);min-height:16px;margin-top:4px}
+  .dialog-btns{display:flex;gap:10px;margin-top:18px}
+  .dialog-btns .btn{flex:1}
+  .btn.danger{background:#fff;color:var(--up);border:1px solid var(--up)}
+  .detail-note{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.7}
+
+  /* 登录页 */
+  #loginView{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;z-index:100}
+  #loginView.show{display:flex}
+  .login-box{text-align:center;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px 32px;max-width:340px}
+  .login-box h2{font-size:18px;margin-bottom:8px}
+  .login-box p{font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:20px}
+  .login-err{font-size:12px;color:var(--up);min-height:16px;margin-top:12px}
+
+  footer{text-align:center;font-size:11px;color:var(--muted);margin-top:24px;line-height:1.8}
+
+  @media (max-width:520px){
+    .summary{grid-template-columns:1fr 1fr}
+    .metrics{grid-template-columns:repeat(2,1fr)}
+  }
+</style>
+</head>
+<body>
+
+<div id="loginView">
+  <div class="login-box">
+    <h2>📊 基金每日收益</h2>
+    <p>登录后持仓与每日战报云端同步<br>手机、电脑随时查看</p>
+    <button class="btn" id="loginBtn" style="width:100%;padding:11px">使用 WorkBuddy 登录</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<div class="container">
+  <header class="top">
+    <div>
+      <h1>📊 基金每日收益</h1>
+      <div class="refresh-line">
+        <span id="updateTime">未更新</span>
+        <button class="btn ghost small" id="refreshBtn">刷新</button>
+        <button class="btn ghost small" id="importBtn">批量导入</button>
+        <button class="btn ghost small" id="exportBtn">导出持仓</button>
+        <button class="btn ghost small" id="settingsBtn">推送设置</button>
+        <span class="user-chip" id="userChip"></span>
+        <button class="btn ghost small" id="logoutBtn" style="display:none">退出</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="summary">
+    <div>
+      <div class="label">持仓总市值</div>
+      <div class="value" id="totalValue">¥ --</div>
+    </div>
+    <div>
+      <div class="label">今日收益</div>
+      <div class="value" id="todayProfit">--</div>
+      <div class="sub" id="todayPct"></div>
+    </div>
+    <div>
+      <div class="label">累计收益</div>
+      <div class="value" id="totalProfit">--</div>
+      <div class="sub" id="totalPct"></div>
+    </div>
+  </div>
+
+  <div id="reportCard"></div>
+
+  <main id="fundList"></main>
+
+  <footer>
+    数据来源：天天基金公开净值数据 · 每日净值约 19:00 后公布，实际收益以基金公司确认为准<br>
+    登录后数据云端同步 · 微信推送需配置 Server酱 SendKey（sct.ftqq.com 免费获取）
+  </footer>
+</div>
+
+<button class="btn fab" id="addBtn" title="添加基金">＋</button>
+
+<dialog id="fundDialog">
+  <h3 id="dialogTitle">添加基金</h3>
+  <label>基金代码（6位数字）</label>
+  <input id="inputCode" maxlength="6" inputmode="numeric" placeholder="如 005827">
+  <div class="name-preview" id="namePreview"></div>
+  <label>持有份额</label>
+  <input id="inputShares" type="number" step="0.01" min="0" placeholder="如 1000">
+  <label>成本单价（每份买入净值）</label>
+  <input id="inputCost" type="number" step="0.0001" min="0" placeholder="如 1.8500">
+  <div style="border-top:1px dashed var(--border);margin-top:14px;padding-top:6px">
+    <label style="display:flex;align-items:center;gap:6px;color:var(--text);font-weight:600">
+      <input type="checkbox" id="inputPlanOn"> 🔁 定投计划
+    </label>
+    <div id="planFields" style="display:none">
+      <label>每次定投金额（元）</label>
+      <input id="inputPlanAmount" type="number" step="0.01" min="0" placeholder="如 500">
+      <label>定投频率</label>
+      <select id="inputPlanFreq">
+        <option value="daily">每日（仅交易日）</option>
+        <option value="monthly">每月</option>
+        <option value="biweekly">每两周</option>
+        <option value="weekly">每周</option>
+      </select>
+      <div id="planDayWrap">
+        <label id="planDayLabel">定投日（每月几号，1-28）</label>
+        <input id="inputPlanDay" type="number" min="1" max="28" placeholder="如 10">
+      </div>
+      <div class="name-preview">开启后从下一个定投日开始，净值公布后自动按当日净值记一笔买入</div>
+    </div>
+  </div>
+  <div class="dialog-btns">
+    <button class="btn danger" id="deleteBtn" style="display:none">删除</button>
+    <button class="btn ghost" id="cancelBtn">取消</button>
+    <button class="btn" id="saveBtn">保存</button>
+  </div>
+</dialog>
+
+<dialog id="tradeDialog">
+  <h3 id="tradeTitle">买入</h3>
+  <label>操作类型</label>
+  <select id="tradeType">
+    <option value="buy">买入（按金额）</option>
+    <option value="sell">卖出（按份额）</option>
+  </select>
+  <label id="tradeQtyLabel">买入金额（元）</label>
+  <input id="tradeQty" type="number" step="0.01" min="0" placeholder="如 1000">
+  <div class="name-preview" id="tradePreview"></div>
+  <div class="dialog-btns">
+    <button class="btn ghost" id="tradeAllBtn" style="display:none">全部卖出</button>
+    <button class="btn ghost" id="tradeCancelBtn">取消</button>
+    <button class="btn" id="tradeOkBtn">确认</button>
+  </div>
+  <div class="detail-note" style="margin-top:10px">按当前最新确认净值即时记账；实际场外申赎按当日收盘净值 T+1 确认，可能有微小差异。卖出会计入「已实现盈亏」。</div>
+</dialog>
+
+<dialog id="settingsDialog">
+  <h3>推送设置</h3>
+  <label>Server酱 SendKey（微信推送）</label>
+  <input id="inputPushKey" placeholder="SCTxxxxxxxxxxxxx">
+  <div class="detail-note">
+    前往 <b>sct.ftqq.com</b> 用微信扫码登录，复制 SendKey 填入并保存。<br>
+    之后每当本设备在净值公布后首次生成当日战报，会自动推送一条微信消息。<br>
+    原理说明：网站被打开时若发现今天还没生成战报，就拉净值生成并推送——所以电脑定时任务或你打开网站的任意一次访问，都会触发微信提醒。
+  </div>
+  <div class="dialog-btns">
+    <button class="btn ghost" id="settingsCancelBtn">取消</button>
+    <button class="btn" id="settingsSaveBtn">保存</button>
+  </div>
+</dialog>
+
+<dialog id="importDialog">
+  <h3>批量导入持仓</h3>
+  <p style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:8px">
+    每行一只基金，用空格分隔：<br>
+    <code style="background:#f1f2f4;padding:1px 4px;border-radius:4px">基金代码 份额 成本单价</code><br>
+    成本单价可省略（省略后不计累计收益）。<br>示例：<br>
+    <code style="background:#f1f2f4;padding:1px 4px;border-radius:4px">005827 1000 1.85</code><br>
+    <code style="background:#f1f2f4;padding:1px 4px;border-radius:4px">161725 2000 0.95</code>
+  </p>
+  <textarea id="importText" rows="7" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit" placeholder="005827 1000 1.85&#10;161725 2000 0.95"></textarea>
+  <div class="name-preview" id="importPreview"></div>
+  <div class="dialog-btns">
+    <button class="btn ghost" id="importCancelBtn">取消</button>
+    <button class="btn" id="importSaveBtn">导入</button>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+/* GitHub Pages 部署版：已移除云服务 SDK，纯本地模式运行（数据存浏览器 localStorage） */
+const publicConfig = {
+  endpoint: "https://fund-daily-profit.app.workbuddy.host",
+  oauthRelayBaseUrl: "https://www.workbuddy.cn/v2/as/genie-baas/oauth",
+  publishableKey: "wbpk_2YwNsVUHzVhjd5sfOm4h6T_qF1IFRIZsZyyOAebWw498KRCd3XsUmFB"
+};
+const isLocalFile = location.protocol === "file:";
+let cloud = null;
+let cloudReady = false;
+let profileRow = null;   // 云端 fund_profiles 行
+let pushKey = localStorage.getItem("fund_push_key") || "";
+let syncTimer = null;
+
+if(!isLocalFile && window.WorkBuddyCloud){
+  try{
+    cloud = WorkBuddyCloud.createWorkBuddyCloud({
+      endpoint: publicConfig.endpoint,
+      oauthRelayBaseUrl: publicConfig.oauthRelayBaseUrl,
+      publishableKey: publicConfig.publishableKey
+    });
+    cloudReady = true;
+  }catch(e){ console.warn("云服务初始化失败", e); }
+}
+
+/* ============ 数据存储 ============ */
+const LS_HOLDINGS = "fund_holdings_v1";
+const LS_REPORTS = "fund_reports_v1";
+const store = {
+  holdings: JSON.parse(localStorage.getItem(LS_HOLDINGS) || "[]"),
+  save(){ localStorage.setItem(LS_HOLDINGS, JSON.stringify(this.holdings)); }
+};
+const loadReports = () => JSON.parse(localStorage.getItem(LS_REPORTS) || "[]");
+const saveReports = rs => localStorage.setItem(LS_REPORTS, JSON.stringify(rs.slice(-60)));
+
+/* 首次打开时自动读取仓库里的 holdings.json，与 GitHub Actions 共用同一份持仓 */
+(async function seedHoldings(){
+  if(store.holdings.length) return;
+  try{
+    const res = await fetch("holdings.json", { cache: "no-store" });
+    if(!res.ok) return;
+    const data = await res.json();
+    if(Array.isArray(data) && data.length && data.every(x => x && x.code)){
+      store.holdings = data.map(x => ({ code: String(x.code), shares: Number(x.shares) || 0, cost: Number(x.cost) || 0 }));
+      store.save();
+      if(typeof render === "function") render();
+      if(typeof refreshAll === "function") refreshAll();
+    }
+  }catch(e){ /* 本地 file:// 打开时静默跳过 */ }
+})();
+
+/* ============ 工具 ============ */
+const $ = id => document.getElementById(id);
+const fmt = (n, d=2) => n == null || isNaN(n) ? "--" : Number(n).toLocaleString("zh-CN",{minimumFractionDigits:d,maximumFractionDigits:d});
+const money = n => "¥ " + fmt(n, 2);
+const cls = n => n > 0 ? "up" : n < 0 ? "down" : "";
+const sign = n => n > 0 ? "+" : "";
+const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+const dateStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const todayMidnightMs = () => new Date(todayStr() + "T00:00:00").getTime();
+const msToDate = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+function isTradingDay(){ const w = new Date().getDay(); return w >= 1 && w <= 5; }
+const NAV_PUBLISH_HOUR = 19;
+const num = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+
+/* JSONP 式脚本加载（绕过 CORS） */
+function loadScript(url, timeout=12000){
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    const timer = setTimeout(() => { cleanup(); reject(new Error("加载超时")); }, timeout);
+    function cleanup(){ clearTimeout(timer); s.remove(); }
+    s.onload = () => { cleanup(); resolve(); };
+    s.onerror = () => { cleanup(); reject(new Error("网络错误")); };
+    s.src = url;
+    document.head.appendChild(s);
+  });
+}
+
+/* ============ 数据抓取 ============ */
+async function fetchLatest(code){
+  const url = `https://fund.eastmoney.com/Data/Fund_JJJZ_Data.aspx?t=1&lx=1&letter=&gsid=&text=${code}` +
+              `&sort=zdf,desc&page=1,5&dt=${Date.now()}&atfc=&onlySale=0`;
+  await loadScript(url);
+  const db = window.db;
+  try{ delete window.db; } catch(e){ window.db = undefined; }
+  if(!db || !Array.isArray(db.datas) || db.datas.length === 0) throw new Error("未找到该基金");
+  const row = db.datas.find(r => r[0] === code) || db.datas[0];
+  const todayNav = num(row[3]);
+  if(todayNav == null) throw new Error("净值数据异常");
+  cache[code] = Object.assign(cache[code] || {}, {
+    name: row[1],
+    todayNav,
+    yestNav: num(row[5]),
+    dayPct: num(row[8]),
+    date: db.showday ? db.showday[0] : todayStr()
+  });
+}
+
+async function fetchHist(code){
+  await loadScript(`https://fund.eastmoney.com/pingzhongdata/${code}.js?v=${Date.now()}`);
+  const trend = window.Data_netWorthTrend;
+  try{ delete window.Data_netWorthTrend; delete window.fS_name; delete window.fS_code; }
+  catch(e){ window.Data_netWorthTrend = undefined; }
+  if(Array.isArray(trend) && trend.length > 0){
+    const hist = trend.map(p => ({ x: p.x, y: p.y })).sort((a,b) => a.x - b.x);
+    cache[code] = Object.assign(cache[code] || {}, { hist });
+  }
+}
+
+async function loadFund(code){
+  await fetchLatest(code);
+  await fetchHist(code).catch(() => {});
+}
+
+/* ============ 定投自动确认 ============ */
+function nextDueDate(plan, afterStr){
+  const after = new Date(afterStr + "T00:00:00");
+  if(plan.freq === "daily"){
+    for(let i = 1; i <= 7; i++){
+      const d = new Date(after); d.setDate(d.getDate() + i);
+      if(d.getDay() >= 1 && d.getDay() <= 5) return dateStr(d);
+    }
+    return null;
+  }
+  if(plan.freq === "monthly"){
+    let y = after.getFullYear(), m = after.getMonth();
+    for(let i = 0; i < 36; i++){
+      const d = new Date(y, m, plan.day);
+      if(d > after) return dateStr(d);
+      m++; if(m > 11){ m = 0; y++; }
+    }
+    return null;
+  }
+  for(let i = 1; i <= 21; i++){
+    const d = new Date(after); d.setDate(d.getDate() + i);
+    if(d.getDay() !== plan.day) continue;
+    if(plan.freq === "weekly") return dateStr(d);
+    if(plan.freq === "biweekly"){
+      if(!plan.anchor){ plan.anchor = dateStr(d); return dateStr(d); }
+      const diff = Math.round((d - new Date(plan.anchor + "T00:00:00")) / 86400000);
+      if(diff % 14 === 0) return dateStr(d);
+    }
+  }
+  return null;
+}
+
+function navForDate(dStr, c){
+  if(!c.date || dStr > c.date) return null;
+  if(dStr === c.date) return c.todayNav;
+  if(c.hist){
+    for(const p of c.hist){
+      if(msToDate(p.x) >= dStr) return p.y;
+    }
+  }
+  return null;
+}
+
+function processDCA(h, c){
+  const plan = h.plan;
+  if(!plan || !(plan.amount > 0) || !c || c.todayNav == null) return false;
+  if(!plan.lastAuto) plan.lastAuto = todayStr();
+  let changed = false, guard = 0;
+  while(guard++ < 36){
+    const due = nextDueDate(plan, plan.lastAuto);
+    if(!due) break;
+    const nav = navForDate(due, c);
+    if(nav == null) break;
+    if(!(h.cost > 0)) h.cost = nav;
+    const buyShares = plan.amount / nav;
+    const totalCostBasis = h.cost * h.shares + plan.amount;
+    h.shares = h.shares + buyShares;
+    h.cost = totalCostBasis / h.shares;
+    plan.confirmed = (plan.confirmed || 0) + 1;
+    plan.lastAuto = due;
+    changed = true;
+    console.log(`[定投] ${h.code} ${due} 买入 ¥${plan.amount} @净值${nav}`);
+  }
+  return changed;
+}
+
+/* ============ 计算 ============ */
+const cache = {}; // code -> { name, todayNav, yestNav, dayPct, date, hist }
+
+function calcFund(f, c){
+  const shares = f.shares, cost = f.cost;
+  if(!c || c.todayNav == null) return null;
+  const isToday = c.date === todayStr();
+  const latestNav = c.todayNav;
+  const dayProfit = c.yestNav != null ? (latestNav - c.yestNav) * shares : null;
+  const dayPct = c.dayPct != null ? c.dayPct : (c.yestNav ? (latestNav / c.yestNav - 1) * 100 : null);
+  const marketValue = shares * latestNav;
+  const totalProfit = cost > 0 ? (latestNav - cost) * shares : null;
+  const totalPct = cost > 0 ? (latestNav - cost) / cost * 100 : null;
+  const waiting = !isToday && isTradingDay() && new Date().getHours() < NAV_PUBLISH_HOUR;
+  let hist = c.hist ? c.hist.slice(-29) : null;
+  if(hist && hist.length){
+    const lastX = msToDate(hist[hist.length-1].x);
+    if(isToday && lastX !== todayStr()){
+      hist = hist.concat([{ x: todayMidnightMs(), y: latestNav }]);
+    }
+  }
+  return { name: c.name, isToday, latestNav, dayProfit, dayPct,
+           marketValue, totalProfit, totalPct, waiting, hist, latestDate: c.date };
+}
+
+/* ============ 渲染 ============ */
+function sparkSVG(points){
+  if(!points || points.length < 2) return "";
+  const w = 660, h = 44, pad = 2;
+  const ys = points.map(p => p.y);
+  const min = Math.min(...ys), max = Math.max(...ys);
+  const range = (max - min) || 1;
+  const stepX = (w - pad*2) / (points.length - 1);
+  const path = points.map((p,i) =>
+    `${i===0?"M":"L"}${(pad + i*stepX).toFixed(1)},${(pad + (1-(p.y-min)/range)*(h-pad*2)).toFixed(1)}`
+  ).join(" ");
+  const rising = ys[ys.length-1] >= ys[0];
+  const color = rising ? "#e5484d" : "#2f9e6e";
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+}
+
+function renderSummary(s){
+  if(!s || store.holdings.length === 0){
+    $("totalValue").textContent = "¥ --";
+    $("todayProfit").textContent = "--"; $("todayProfit").className = "value";
+    $("todayPct").textContent = "";
+    $("totalProfit").textContent = "--"; $("totalProfit").className = "value";
+    $("totalPct").textContent = "";
+    return;
+  }
+  $("totalValue").textContent = money(s.totalVal);
+  const tp = $("todayProfit");
+  if(s.hasDay){
+    tp.textContent = sign(s.dayTotal) + money(s.dayTotal);
+    tp.className = "value " + cls(s.dayTotal);
+    const base = s.totalVal - s.dayTotal;
+    $("todayPct").textContent = base > 0 ? `${sign(s.dayTotal / base * 100)}${fmt(s.dayTotal / base * 100)}%` : "";
+    $("todayPct").className = "sub " + cls(s.dayTotal);
+  } else {
+    tp.textContent = "--"; tp.className = "value";
+    $("todayPct").textContent = "";
+  }
+  const gp = $("totalProfit");
+  if(s.hasTotal && s.totalCost > 0){
+    gp.textContent = sign(s.totalProfitAll) + money(s.totalProfitAll);
+    gp.className = "value " + cls(s.totalProfitAll);
+    $("totalPct").textContent = `${sign(s.totalProfitAll / s.totalCost * 100)}${fmt(s.totalProfitAll / s.totalCost * 100)}%`;
+    $("totalPct").className = "sub " + cls(s.totalProfitAll);
+  } else {
+    gp.textContent = "--"; gp.className = "value";
+    $("totalPct").textContent = "";
+  }
+}
+
+function render(){
+  const list = $("fundList");
+  if(store.holdings.length === 0){
+    list.innerHTML = `<div class="empty">
+      还没有添加基金<br>点击右下角「＋」输入基金代码、份额和成本<br><br>
+      <button class="btn ghost" id="demoBtn">载入示例持仓体验</button>
+    </div>`;
+    const demo = $("demoBtn");
+    if(demo) demo.onclick = loadDemo;
+    renderSummary(null);
+    return;
+  }
+
+  let totalVal = 0, dayTotal = 0, hasDay = false, totalProfitAll = 0, totalCost = 0, hasTotal = false;
+  const rows = store.holdings.map(f => {
+    const r = calcFund(f, cache[f.code]);
+    if(r){
+      totalVal += r.marketValue;
+      if(r.dayProfit != null){ dayTotal += r.dayProfit; hasDay = true; }
+      if(r.totalProfit != null){ totalProfitAll += r.totalProfit; totalCost += f.shares * f.cost; hasTotal = true; }
+    }
+    return { f, r };
+  });
+  renderSummary({ totalVal, dayTotal, hasDay, totalProfitAll, totalCost, hasTotal });
+
+  let html = "";
+  for(const { f, r } of rows){
+    if(!r){
+      html += `<div class="fund-card" data-code="${f.code}">
+        <div class="fund-head">
+          <div><div class="fund-name">${f.code}</div><div class="fund-code">持有 ${fmt(f.shares)} 份</div></div>
+          <div class="fund-actions"><button class="icon-btn" data-act="edit">编辑</button></div>
+        </div>
+        <div class="err">净值数据加载失败，请点击「刷新」重试</div>
+      </div>`;
+      continue;
+    }
+    const planTag = f.plan ? '<span class="tag ok">定投中</span>' : "";
+    const tag = r.isToday
+      ? '<span class="tag ok">今日已确认</span>'
+      : (r.waiting ? '<span class="tag wait">今日净值待更新</span>' : `<span class="tag wait">${r.latestDate || ""}</span>`);
+    const freqText = f.plan ? ({ daily: "每日", monthly: "每月", biweekly: "每两周", weekly: "每周" })[f.plan.freq] || "" : "";
+    const dayText = f.plan ? (f.plan.freq === "monthly" ? `${f.plan.day}日` : f.plan.freq === "daily" ? "" : `周${"一二三四五"[f.plan.day-1]}`) : "";
+    const nextDue = f.plan ? nextDueDate(f.plan, f.plan.lastAuto || todayStr()) : null;
+    const planLine = f.plan
+      ? `<div class="plan-line">🔁 定投 <b>¥${fmt(f.plan.amount)}</b> / ${freqText}${dayText} · 已自动确认 <b>${f.plan.confirmed || 0}</b> 笔${nextDue ? ` · 下次 ${nextDue.slice(5)}` : ""}</div>`
+      : "";
+    const realizedLine = f.realized
+      ? `<div class="plan-line">💰 累计已实现盈亏 <b class="${cls(f.realized)}">${sign(f.realized)}${money(f.realized)}</b></div>`
+      : "";
+    html += `<div class="fund-card" data-code="${f.code}">
+      <div class="fund-head">
+        <div>
+          <div class="fund-name">${r.name}${tag}${planTag}</div>
+          <div class="fund-code">${f.code} · 持有 ${fmt(f.shares)} 份</div>
+        </div>
+        <div class="fund-actions">
+          <button class="icon-btn" data-act="buy">买入</button>
+          <button class="icon-btn" data-act="sell">卖出</button>
+          <button class="icon-btn" data-act="edit">编辑</button>
+        </div>
+      </div>
+      <div class="est-line">
+        <div>
+          <div class="est-pct ${cls(r.dayPct)}">${r.dayPct != null ? sign(r.dayPct) + fmt(r.dayPct) + "%" : "--"}</div>
+          <div class="spark-caption">${r.isToday ? "今日" : "最新"}收益 · 净值 ${fmt(r.latestNav,4)}</div>
+        </div>
+        <div class="est-amt ${cls(r.dayProfit)}">${r.dayProfit != null ? sign(r.dayProfit) + money(r.dayProfit) : "--"}</div>
+      </div>
+      <div class="metrics">
+        <div><div class="m-label">持仓市值</div><div class="m-value">${money(r.marketValue)}</div></div>
+        <div><div class="m-label">成本单价</div><div class="m-value">${f.cost > 0 ? fmt(f.cost,4) : "--"}</div></div>
+        <div><div class="m-label">持仓收益</div><div class="m-value ${cls(r.totalProfit)}">${r.totalProfit != null ? sign(r.totalProfit) + fmt(r.totalProfit) : "--"}</div></div>
+        <div><div class="m-label">收益率</div><div class="m-value ${cls(r.totalPct)}">${r.totalPct != null ? sign(r.totalPct) + fmt(r.totalPct) + "%" : "--"}</div></div>
+      </div>
+      <div class="spark">${sparkSVG(r.hist)}
+        <div class="spark-caption">近30个交易日净值走势</div>
+      </div>
+      ${planLine}
+      ${realizedLine}
+    </div>`;
+  }
+  list.innerHTML = html;
+
+  list.querySelectorAll('[data-act="edit"]').forEach(btn => {
+    btn.onclick = e => openDialog(e.target.closest(".fund-card").dataset.code);
+  });
+  list.querySelectorAll('[data-act="buy"]').forEach(btn => {
+    btn.onclick = e => openTrade(e.target.closest(".fund-card").dataset.code, "buy");
+  });
+  list.querySelectorAll('[data-act="sell"]').forEach(btn => {
+    btn.onclick = e => openTrade(e.target.closest(".fund-card").dataset.code, "sell");
+  });
+}
+
+/* ============ 刷新逻辑 ============ */
+let refreshing = false;
+async function refreshAll(){
+  if(refreshing) return;
+  if(store.holdings.length === 0){ render(); updateDailyReport(); return; }
+  refreshing = true;
+  $("refreshBtn").textContent = "刷新中…";
+  let dcaChanged = false;
+  await Promise.all(store.holdings.map(async f => {
+    try{
+      await loadFund(f.code);
+      if(processDCA(f, cache[f.code])) dcaChanged = true;
+    }
+    catch(e){ console.warn("获取失败", f.code, e); }
+  }));
+  if(dcaChanged) store.save();
+  refreshing = false;
+  $("refreshBtn").textContent = "刷新";
+  $("updateTime").textContent = "更新于 " + new Date().toLocaleTimeString("zh-CN");
+  render();
+  updateDailyReport();
+}
+
+/* ============ 买入 / 卖出记账 ============ */
+let tradeCode = null;
+function openTrade(code, type){
+  tradeCode = code;
+  const f = store.holdings.find(x => x.code === code);
+  if(!f) return;
+  const c = cache[code];
+  const name = c && c.name ? c.name : code;
+  $("tradeTitle").textContent = `${type === "buy" ? "买入" : "卖出"} · ${name}`;
+  $("tradeType").value = type;
+  $("tradeQty").value = "";
+  tradeTypeChanged();
+  $("tradeDialog").showModal();
+  $("tradeQty").focus();
+}
+function tradeTypeChanged(){
+  const type = $("tradeType").value;
+  const f = store.holdings.find(x => x.code === tradeCode);
+  const c = tradeCode ? cache[tradeCode] : null;
+  const nav = c && c.todayNav != null ? c.todayNav : null;
+  $("tradeQtyLabel").textContent = type === "buy" ? "买入金额（元）" : "卖出份额";
+  $("tradeAllBtn").style.display = type === "sell" ? "" : "none";
+  $("tradePreview").textContent = nav != null
+    ? `按最新确认净值 ${fmt(nav,4)} 记账${type === "buy" ? "，份额 = 金额 ÷ 净值" : `，当前持有 ${fmt(f ? f.shares : 0)} 份`}`
+    : "净值尚未加载，请先刷新";
+}
+$("tradeType").onchange = tradeTypeChanged;
+$("tradeAllBtn").onclick = () => {
+  const f = store.holdings.find(x => x.code === tradeCode);
+  if(f) $("tradeQty").value = f.shares;
+};
+$("tradeCancelBtn").onclick = () => $("tradeDialog").close();
+$("tradeOkBtn").onclick = () => {
+  const f = store.holdings.find(x => x.code === tradeCode);
+  if(!f) return;
+  const c = cache[tradeCode];
+  if(!c || c.todayNav == null){ alert("净值尚未加载，请先刷新"); return; }
+  const nav = c.todayNav;
+  const qty = parseFloat($("tradeQty").value);
+  const type = $("tradeType").value;
+  if(isNaN(qty) || qty <= 0){ alert("请输入有效数值"); return; }
+  if(type === "buy"){
+    const prevCost = f.cost > 0 ? f.cost : nav;
+    const newShares = qty / nav;
+    f.cost = (prevCost * f.shares + qty) / (f.shares + newShares);
+    f.shares = f.shares + newShares;
+  } else {
+    if(qty > f.shares + 1e-6){ alert(`卖出份额不能超过持有份额 ${fmt(f.shares)}`); return; }
+    const realized = qty * (nav - (f.cost > 0 ? f.cost : nav));
+    f.realized = (f.realized || 0) + realized;
+    f.shares = f.shares - qty;
+  }
+  store.save();
+  $("tradeDialog").close();
+  render();
+};
+
+/* ============ 添加 / 编辑弹窗 ============ */
+let editingCode = null;
+function planFieldsShow(show){ $("planFields").style.display = show ? "" : "none"; }
+function updateDayLabel(){
+  const freq = $("inputPlanFreq").value;
+  $("planDayWrap").style.display = freq === "daily" ? "none" : "";
+  $("planDayLabel").textContent =
+    freq === "monthly" ? "定投日（每月几号，1-28）" :
+    freq === "biweekly" ? "定投日（每两周的周几，1=周一）" : "定投日（每周几，1=周一）";
+}
+function openDialog(code){
+  editingCode = code || null;
+  const f = code ? store.holdings.find(x => x.code === code) : null;
+  const plan = f && f.plan;
+  $("dialogTitle").textContent = f ? "编辑基金" : "添加基金";
+  $("inputCode").value = f ? f.code : "";
+  $("inputShares").value = f ? f.shares : "";
+  $("inputCost").value = f ? f.cost : "";
+  $("inputPlanOn").checked = !!plan;
+  $("inputPlanAmount").value = plan ? plan.amount : "";
+  $("inputPlanFreq").value = plan ? plan.freq : "monthly";
+  $("inputPlanDay").value = plan ? plan.day : "";
+  planFieldsShow(!!plan);
+  updateDayLabel();
+  $("namePreview").textContent = f && cache[code] ? cache[code].name : "";
+  $("deleteBtn").style.display = f ? "" : "none";
+  $("fundDialog").showModal();
+  $("inputCode").focus();
+}
+
+$("addBtn").onclick = () => openDialog(null);
+$("cancelBtn").onclick = () => $("fundDialog").close();
+$("refreshBtn").onclick = () => refreshAll();
+
+$("inputCode").onchange = async e => {
+  const code = e.target.value.trim();
+  $("namePreview").textContent = "";
+  if(!/^\d{6}$/.test(code)) return;
+  $("namePreview").textContent = "查询中…";
+  try{
+    await fetchLatest(code);
+    $("namePreview").textContent = cache[code] ? cache[code].name : "未找到该基金";
+  }catch(err){ $("namePreview").textContent = "查询失败，请检查代码"; }
+};
+
+$("inputPlanOn").onchange = e => planFieldsShow(e.target.checked);
+$("inputPlanFreq").onchange = updateDayLabel;
+
+$("saveBtn").onclick = () => {
+  const code = $("inputCode").value.trim();
+  const shares = parseFloat($("inputShares").value);
+  const cost = parseFloat($("inputCost").value);
+  if(!/^\d{6}$/.test(code)){ alert("请输入 6 位基金代码"); return; }
+  if(isNaN(shares) || shares <= 0){ alert("请输入有效份额"); return; }
+  if(isNaN(cost) || cost < 0){ alert("请输入有效成本"); return; }
+
+  const planOn = $("inputPlanOn").checked;
+  let plan = null;
+  if(planOn){
+    const amount = parseFloat($("inputPlanAmount").value);
+    const freq = $("inputPlanFreq").value;
+    const day = parseInt($("inputPlanDay").value, 10);
+    if(isNaN(amount) || amount <= 0){ alert("请输入定投金额"); return; }
+    if(freq === "monthly" && !(day >= 1 && day <= 28)){ alert("每月定投日需为 1-28 号"); return; }
+    if(freq !== "monthly" && freq !== "daily" && !(day >= 1 && day <= 5)){ alert("周几需为 1-5（1=周一）"); return; }
+    plan = { amount, freq, day: freq === "daily" ? 0 : day };
+  }
+
+  const exist = store.holdings.find(x => x.code === code);
+  if(editingCode){
+    const f = store.holdings.find(x => x.code === editingCode);
+    if(f){
+      if(editingCode !== code && exist){ alert("该代码已在列表中"); return; }
+      f.code = code; f.shares = shares; f.cost = cost;
+    }
+  } else {
+    if(exist){ alert("该基金已在列表中，请点击卡片上的「编辑」修改"); return; }
+    store.holdings.push({ code, shares, cost });
+  }
+
+  const f = store.holdings.find(x => x.code === code);
+  if(f){
+    if(plan){
+      if(f.plan){ Object.assign(f.plan, plan); }
+      else f.plan = Object.assign(plan, { lastAuto: todayStr(), confirmed: 0 });
+    } else if(f.plan){
+      delete f.plan;
+    }
+  }
+
+  store.save();
+  $("fundDialog").close();
+  refreshAll();
+};
+
+$("deleteBtn").onclick = () => {
+  if(!editingCode) return;
+  store.holdings = store.holdings.filter(x => x.code !== editingCode);
+  store.save();
+  $("fundDialog").close();
+  render();
+};
+
+/* ============ 批量导入 ============ */
+$("importBtn").onclick = () => {
+  $("importText").value = "";
+  $("importPreview").textContent = "";
+  $("importDialog").showModal();
+};
+$("importCancelBtn").onclick = () => $("importDialog").close();
+$("importSaveBtn").onclick = () => {
+  const lines = $("importText").value.split(/\n+/).map(l => l.trim()).filter(Boolean);
+  if(lines.length === 0){ alert("请先粘贴持仓内容"); return; }
+  let added = 0, skipped = [];
+  for(const line of lines){
+    const parts = line.split(/[\s,，\t]+/);
+    const m = parts[0].match(/(\d{6})/);
+    if(!m){ skipped.push(line); continue; }
+    const code = m[1];
+    const shares = parseFloat(parts[1]);
+    const cost = parseFloat(parts[2]);
+    if(isNaN(shares) || shares <= 0){ skipped.push(line); continue; }
+    const exist = store.holdings.find(x => x.code === code);
+    if(exist){
+      exist.shares = shares;
+      if(!isNaN(cost) && cost > 0) exist.cost = cost;
+    } else {
+      store.holdings.push({ code, shares, cost: (!isNaN(cost) && cost > 0) ? cost : 0 });
+    }
+    added++;
+  }
+  store.save();
+  $("importDialog").close();
+  if(skipped.length) alert(`已导入 ${added} 只；以下 ${skipped.length} 行无法识别已跳过：\n` + skipped.join("\n"));
+  refreshAll();
+};
+
+/* ============ 导出持仓 ============ */
+$("exportBtn").onclick = () => {
+  const blob = new Blob([JSON.stringify(store.holdings, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "holdings.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+function loadDemo(){
+  store.holdings = [
+    { code: "005827", shares: 1000, cost: 1.85 },
+    { code: "161725", shares: 2000, cost: 0.95 }
+  ];
+  store.save();
+  refreshAll();
+}
+
+/* ============ 每日战报 ============ */
+function buildTodayReport(){
+  const items = [];
+  let total = 0, totalVal = 0, has = false;
+  for(const f of store.holdings){
+    const r = calcFund(f, cache[f.code]);
+    if(r && r.isToday && r.dayProfit != null){
+      has = true;
+      items.push({ code: f.code, name: r.name, dayProfit: r.dayProfit, dayPct: r.dayPct });
+      total += r.dayProfit;
+      totalVal += r.marketValue;
+    }
+  }
+  if(!has) return null;
+  return { date: todayStr(), items, total, totalVal, time: new Date().toLocaleTimeString("zh-CN") };
+}
+
+async function pushReport(rep){
+  if(!pushKey) return;
+  const desp = rep.items
+    .map(it => `${it.name}（${it.code}）：${sign(it.dayProfit)}${money(it.dayProfit)}（${sign(it.dayPct)}${fmt(it.dayPct)}%）`)
+    .join("\n\n") + `\n\n当日合计：${sign(rep.total)}${money(rep.total)}\n持仓市值：${money(rep.totalVal)}`;
+  try{
+    await fetch(`https://sctapi.ftqq.com/${encodeURIComponent(pushKey)}.send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ title: `基金每日战报 ${sign(rep.total)}${money(rep.total)}`, desp: desp })
+    });
+    console.log("[推送] Server酱已发送");
+  }catch(e){
+    try{
+      await fetch(`https://sctapi.ftqq.com/${encodeURIComponent(pushKey)}.send`, {
+        method: "POST", mode: "no-cors",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ title: `基金每日战报 ${sign(rep.total)}${money(rep.total)}`, desp: desp })
+      });
+    }catch(e2){ console.warn("[推送] 发送失败", e2); }
+  }
+}
+
+function updateDailyReport(){
+  const rep = buildTodayReport();
+  if(!rep) return;
+  const rs = loadReports();
+  const i = rs.findIndex(x => x.date === rep.date);
+  const isNew = i < 0;
+  if(isNew) rs.push(rep); else rs[i] = rep;
+  saveReports(rs);
+  renderReportCard();
+  scheduleSync();
+  if(isNew && pushKey) pushReport(rep);
+}
+
+function renderReportCard(){
+  const el = $("reportCard");
+  const rs = loadReports();
+  const today = rs.find(x => x.date === todayStr());
+  if(!today){ el.innerHTML = ""; return; }
+  const hist = rs.filter(x => x.date !== todayStr()).slice(-7).reverse();
+  el.innerHTML = `<div class="report-card">
+    <div class="report-title">📋 每日战报 · ${today.date}<span class="time">生成于 ${today.time} · 当日净值确认后自动更新</span></div>
+    ${today.items.map(it => `<div class="report-line">
+      <span class="r-name">${it.name} <span style="color:var(--muted);font-size:11px">${it.code}</span></span>
+      <span class="r-val ${cls(it.dayProfit)}">${sign(it.dayProfit)}${money(it.dayProfit)} <span style="font-size:11px">(${sign(it.dayPct)}${fmt(it.dayPct)}%)</span></span>
+    </div>`).join("")}
+    <div class="report-total">
+      <span>当日合计（市值 ${money(today.totalVal)}）</span>
+      <span class="${cls(today.total)}">${sign(today.total)}${money(today.total)}</span>
+    </div>
+    ${hist.length ? `<details class="report-hist"><summary>历史战报（近${hist.length}天）</summary>
+      ${hist.map(hh => `<div class="h-line"><span>${hh.date}</span><b class="${cls(hh.total)}">${sign(hh.total)}${money(hh.total)}</b></div>`).join("")}
+    </details>` : ""}
+  </div>`;
+}
+
+/* ============ 推送设置 ============ */
+$("settingsBtn").onclick = () => {
+  $("inputPushKey").value = pushKey;
+  $("settingsDialog").showModal();
+};
+$("settingsCancelBtn").onclick = () => $("settingsDialog").close();
+$("settingsSaveBtn").onclick = () => {
+  pushKey = $("inputPushKey").value.trim();
+  localStorage.setItem("fund_push_key", pushKey);
+  $("settingsDialog").close();
+  scheduleSync();
+  alert(pushKey ? "已保存。当日战报首次生成时会自动推送微信。" : "已清空推送配置。");
+};
+
+/* ============ 云端同步（登录后自动，本地模式跳过） ============ */
+function scheduleSync(){
+  if(!cloudReady) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(syncCloud, 1500);
+}
+
+async function syncCloud(){
+  if(!cloudReady) return;
+  try{
+    const payload = {
+      holdings: store.holdings,
+      reports: loadReports().slice(-60),
+      push_key: pushKey || null,
+      updated_at: new Date().toISOString()
+    };
+    if(profileRow){
+      const { data, error } = await cloud.database.from("fund_profiles")
+        .update(payload).eq("id", profileRow.id).select();
+      if(error) throw error;
+      if(!data || data.length === 0){ profileRow = null; }
+    }
+    if(!profileRow){
+      const { data, error } = await cloud.database.from("fund_profiles")
+        .insert(payload).select();
+      if(error) throw error;
+      profileRow = data && data[0] ? data[0] : null;
+    }
+  }catch(e){ console.warn("[云端同步] 失败", e); }
+}
+
+async function loadCloudProfile(){
+  if(!cloudReady) return;
+  try{
+    const { data, error } = await cloud.database.from("fund_profiles")
+      .select("*").order("id", { ascending: false }).limit(1);
+    if(error) throw error;
+    const row = data && data[0];
+    if(row){
+      profileRow = row;
+      const cloudNewer = true; // 云端为准
+      if(cloudNewer && Array.isArray(row.holdings)) { store.holdings = row.holdings; store.save(); }
+      if(Array.isArray(row.reports)) saveReports(row.reports);
+      if(row.push_key != null){ pushKey = row.push_key; localStorage.setItem("fund_push_key", pushKey); }
+    } else {
+      // 首次使用：把本地数据搬到云端
+      await syncCloud();
+    }
+    render();
+    renderReportCard();
+    refreshAll();
+  }catch(e){
+    console.warn("[云端同步] 读取失败", e);
+    $("updateTime").textContent = "云端同步失败（本地模式继续）";
+    render();
+    renderReportCard();
+    refreshAll();
+  }
+}
+
+/* ============ 登录 / 启动 ============ */
+function showLogin(err){
+  $("loginView").classList.add("show");
+  $("loginErr").textContent = err || "";
+}
+function hideLogin(){ $("loginView").classList.remove("show"); }
+function updateUserChip(user){
+  const chip = $("userChip"), out = $("logoutBtn");
+  if(user){
+    chip.textContent = "👤 " + (user.name || "已登录");
+    out.style.display = "";
+  } else {
+    chip.textContent = "";
+    out.style.display = "none";
+  }
+}
+$("logoutBtn").onclick = async () => {
+  if(!cloudReady) return;
+  await cloud.auth.signOut();
+  updateUserChip(null);
+  showLogin();
+};
+$("loginBtn").onclick = async () => {
+  if(!cloudReady){ showLogin("当前环境不可用云服务（本地文件模式无需登录）"); return; }
+  $("loginErr").textContent = "";
+  const back = new URL(location.href);
+  back.pathname = "/";
+  for(const key of ["code", "state", "provider"]) back.searchParams.delete(key);
+  const { data, error } = await cloud.auth.signInWithOAuth({
+    provider: "workbuddy",
+    redirectTo: back.toString()
+  });
+  if(error){ $("loginErr").textContent = error.message; return; }
+  location.assign(data.url);
+};
+
+function startApp(){
+  hideLogin();
+  render();
+  renderReportCard();
+  refreshAll();
+  setInterval(() => {
+    if(isTradingDay()){
+      const h = new Date().getHours();
+      if(h >= 9 && h <= 22) refreshAll();
+    }
+  }, 5 * 60 * 1000);
+}
+
+async function restoreAuth(){
+  if(!cloudReady){
+    // 本地文件模式：无需登录直接用
+    startApp();
+    return;
+  }
+  const url = new URL(location.href);
+  if(url.searchParams.has("code") || url.searchParams.has("error")){
+    const provider = url.searchParams.get("provider");
+    if(provider === "workbuddy" && typeof cloud.auth.handleWorkBuddyCallback === "function"){
+      const { data: session, error } = await cloud.auth.handleWorkBuddyCallback.call(cloud.auth);
+      if(error){ showLogin(error.message); return; }
+      if(session){
+        for(const key of ["code", "state", "provider"]) url.searchParams.delete(key);
+        history.replaceState(null, "", url.pathname + url.search + url.hash);
+      }
+    } else if(provider && provider !== "workbuddy"){
+      showLogin("暂不支持的登录方式"); return;
+    }
+  }
+  const { data: session, error } = await cloud.auth.getSession();
+  if(error || !session){
+    showLogin();
+    return;
+  }
+  updateUserChip(session.user);
+  await loadCloudProfile();
+  startApp();
+}
+
+restoreAuth();
+</script>
+</body>
+</html>
