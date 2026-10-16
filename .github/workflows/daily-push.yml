@@ -2,9 +2,9 @@ name: 基金每日战报
 
 on:
   schedule:
-    # UTC 14:00 = 北京时间 22:00（基金净值当日已基本公布完毕）
+    # UTC 13:15 = 北京时间 21:15（基金净值当日已基本公布）
     # GitHub 定时任务可能有 0~30 分钟延迟；想更早/更晚可自行增删 cron 行
-    - cron: "0 14 * * 1-5"
+    - cron: "15 13 * * 1-5"
   workflow_dispatch: {}   # 允许在 Actions 页面手动触发，方便测试
 
 permissions:
