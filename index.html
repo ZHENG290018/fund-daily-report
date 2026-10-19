@@ -361,31 +361,57 @@ async function fetchLatest(code){
   try{ delete window.db; } catch(e){ window.db = undefined; }
   if(!db || !Array.isArray(db.datas) || db.datas.length === 0) throw new Error("未找到该基金");
   const row = db.datas.find(r => r[0] === code) || db.datas[0];
-  const todayNav = num(row[3]);
+  const days = Array.isArray(db.showday) ? db.showday : [];
+  /* QDII 等品种"最新净值"栏可能为空，其最新值放在上一交易日栏 */
+  const navNow = num(row[3]);
+  const navPrev = num(row[5]);
+  const todayNav = navNow != null ? navNow : navPrev;
   if(todayNav == null) throw new Error("净值数据异常");
   cache[code] = Object.assign(cache[code] || {}, {
     name: row[1],
     todayNav,
-    yestNav: num(row[5]),
+    yestNav: navNow != null ? navPrev : null,
     dayPct: num(row[8]),
-    date: db.showday ? db.showday[0] : todayStr()
+    date: navNow != null ? (days[0] || todayStr()) : (days[1] || days[0] || todayStr())
   });
 }
 
-async function fetchHist(code){
+/* 备用数据源：pingzhongdata 详情接口（主源查不到/字段缺失时兜底，QDII 也支持） */
+async function fetchFromPingzhong(code){
   await loadScript(`https://fund.eastmoney.com/pingzhongdata/${code}.js?v=${Date.now()}`);
-  const trend = window.Data_netWorthTrend;
+  const trend = window.Data_netWorthTrend, fname = window.fS_name;
   try{ delete window.Data_netWorthTrend; delete window.fS_name; delete window.fS_code; }
-  catch(e){ window.Data_netWorthTrend = undefined; }
-  if(Array.isArray(trend) && trend.length > 0){
-    const hist = trend.map(p => ({ x: p.x, y: p.y })).sort((a,b) => a.x - b.x);
-    cache[code] = Object.assign(cache[code] || {}, { hist });
-  }
+  catch(e){ window.Data_netWorthTrend = undefined; window.fS_name = undefined; }
+  if(!Array.isArray(trend) || trend.length === 0) throw new Error("备用数据源中也未找到该基金");
+  const pts = trend.map(p => ({ x: p.x, y: p.y, r: p.equityReturn })).sort((a,b) => a.x - b.x);
+  const last = pts[pts.length - 1];
+  const prev = pts.length > 1 ? pts[pts.length - 2] : null;
+  const d = new Date(last.x), pad = n => String(n).padStart(2, "0");
+  const date = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  cache[code] = Object.assign(cache[code] || {}, {
+    name: fname || code,
+    todayNav: last.y,
+    yestNav: prev ? prev.y : null,
+    dayPct: last.r != null ? last.r : (prev ? (last.y / prev.y - 1) * 100 : null),
+    date,
+    hist: pts.map(p => ({ x: p.x, y: p.y }))
+  });
 }
 
 async function loadFund(code){
-  await fetchLatest(code);
-  await fetchHist(code).catch(() => {});
+  try{
+    await fetchLatest(code);
+    await fetchHist(code).catch(() => {});
+    /* 主源没有当日涨幅（如 QDII）时，用净值历史最近两点计算 */
+    const c = cache[code];
+    if(c && c.dayPct == null && Array.isArray(c.hist) && c.hist.length > 1){
+      const a = c.hist[c.hist.length - 2], b = c.hist[c.hist.length - 1];
+      if(b.y > 0) c.dayPct = (b.y / a.y - 1) * 100;
+    }
+  }catch(e){
+    /* 主源失败（含 QDII 净值栏为空被判异常）→ 走备用源 */
+    await fetchFromPingzhong(code);
+  }
 }
 
 /* ============ 定投自动确认 ============ */
