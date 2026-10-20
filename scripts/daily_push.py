@@ -154,15 +154,16 @@ def push(report):
     )
     try:
         resp = json.loads(raw)
-        # Server酱成功时返回 {"code":0,"error":"SUCCESS","errno":0}
-        if resp.get("error") == "SUCCESS" or resp.get("errno") == 0:
+        # Server酱成功时返回 {"code":0,"message":"","data":{"error":"SUCCESS","errno":0,...}}
+        data = resp.get("data") or {}
+        if resp.get("code") == 0 or data.get("error") == "SUCCESS" or data.get("errno") == 0:
             print("[推送] Server酱发送成功")
-        else:
-            print(f"[推送] Server酱返回异常：{raw[:200]}")
-            sys.exit(1)
+            return True
+        print(f"[推送] Server酱返回异常：{raw[:200]}")
+        return False
     except json.JSONDecodeError:
         print(f"[推送] Server酱响应无法解析：{raw[:200]}")
-        sys.exit(1)
+        return False
 
 
 def main():
@@ -185,7 +186,17 @@ def main():
     if report is None:
         print(f"所有基金净值均未更新到今日({today_cst()})，视为非交易日或未公布，跳过推送")
         return
-    push(report)
+    # 当日去重：GitHub 定时任务可能延迟/多次触发，同一天只推一次
+    marker = os.environ.get("PUSHED_MARKER", ".pushed_today")
+    if os.path.exists(marker):
+        print("今日战报已推送过（存在当日标记），跳过重复推送")
+        return
+    if push(report):
+        try:
+            with open(marker, "w", encoding="utf-8") as f:
+                f.write(today_cst())
+        except OSError:
+            pass
 
 
 if __name__ == "__main__":
