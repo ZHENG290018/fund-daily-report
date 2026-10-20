@@ -2,9 +2,11 @@ name: 基金每日战报
 
 on:
   schedule:
-    # UTC 12:45 = 北京时间 20:45
-    # GitHub 定时任务可能有 0~30 分钟延迟；想更早/更晚可自行增删 cron 行
-    - cron: "45 12 * * 1-5"
+    # GitHub 免费版定时可能延迟几十分钟甚至数小时，故设多个时间点兜底；
+    # 脚本内有"当日去重"（Actions 缓存标记），同一天只会推送一次
+    - cron: "45 12 * * 1-5"   # 北京 20:45（首选）
+    - cron: "30 13 * * 1-5"   # 北京 21:30（兜底）
+    - cron: "0 14 * * 1-5"    # 北京 22:00（兜底）
   workflow_dispatch: {}   # 允许在 Actions 页面手动触发，方便测试
 
 permissions:
@@ -22,7 +24,18 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: 北京时间日期
+        id: tzdate
+        run: echo "date=$(TZ=Asia/Shanghai date +%F)" >> "$GITHUB_OUTPUT"
+
+      - name: 当日推送去重标记（缓存）
+        uses: actions/cache@v4
+        with:
+          path: .pushed_today
+          key: pushed-${{ steps.tzdate.outputs.date }}
+
       - name: 生成并发送每日战报
         env:
           SCT_SENDKEY: ${{ secrets.SCT_SENDKEY }}
+          PUSHED_MARKER: .pushed_today
         run: python scripts/daily_push.py
