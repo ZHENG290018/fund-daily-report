@@ -21,14 +21,14 @@
   },
   {
     "code": "019172",
-    "shares": 5.67,
-    "cost": 1.7637,
+    "shares": 11.426389592447617,
+    "cost": 1.7503498229413876,
     "plan": {
       "amount": 10,
       "freq": "daily",
       "day": 0,
-      "lastAuto": "2026-10-19",
-      "confirmed": 0
+      "lastAuto": "2026-10-20",
+      "confirmed": 1
     }
   }
 ]
