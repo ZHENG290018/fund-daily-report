@@ -1151,17 +1151,27 @@ async function pushHoldingsToGitHub(){
     const json = JSON.stringify(store.holdings, null, 2) + "\n";
     const b64 = btoa(unescape(encodeURIComponent(json)));
     const branch = ghCfg.branch || "main";
-    let sha = null;
-    try{ sha = (await ghApi(`/repos/${ghCfg.repo}/contents/holdings.json?ref=${encodeURIComponent(branch)}`)).sha; }
-    catch(e){ if(!/404/.test(e.message)) throw e; }
-    await ghApi(`/repos/${ghCfg.repo}/contents/holdings.json`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: "持仓更新（来自网页） " + new Date().toLocaleString("zh-CN"),
-        content: b64, sha, branch
-      })
-    });
+    let ok = false;
+    for(let attempt = 0; attempt < 3 && !ok; attempt++){
+      let sha = null;
+      try{ sha = (await ghApi(`/repos/${ghCfg.repo}/contents/holdings.json?ref=${encodeURIComponent(branch)}`)).sha; }
+      catch(e){ if(!/404/.test(e.message)) throw e; }
+      try{
+        await ghApi(`/repos/${ghCfg.repo}/contents/holdings.json`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: "持仓更新（来自网页） " + new Date().toLocaleString("zh-CN"),
+            content: b64, sha, branch
+          })
+        });
+        ok = true;
+      }catch(e){
+        /* 409 冲突：文件刚被其他设备/操作更新 → 取最新 sha 重试 */
+        if(!/409/.test(e.message) || attempt === 2) throw e;
+        await new Promise(r => setTimeout(r, 800));
+      }
+    }
     setGhStatus("持仓已同步到 GitHub ✓");
   }catch(e){
     setGhStatus("同步失败", true);
